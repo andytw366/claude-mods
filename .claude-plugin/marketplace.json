@@ -5,19 +5,5 @@
     "url": "https://github.com/andytw366"
   },
   "description": "andytw366's Claude Code mods.",
-  "plugins": [
-    {
-      "name": "prismantis-cjk",
-      "description": "Fork of prismantis 0.11.0 that sizes mermaid diagram boxes for CJK (double-width) labels.",
-      "source": "./prismantis-cjk",
-      "version": "0.11.0-cjk.1",
-      "category": "appearance",
-      "tags": [
-        "mod",
-        "markdown",
-        "mermaid",
-        "cjk"
-      ]
-    }
-  ]
+  "plugins": []
 }
