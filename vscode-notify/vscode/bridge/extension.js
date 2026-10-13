@@ -24,8 +24,11 @@ async function deliver(event) {
   try {
     await vscode.commands.executeCommand('claudeNotify.toast', event);
   } catch {
-    // claude-notify-toast isn't installed: fall back to VS Code's own popup.
-    vscode.window.showInformationMessage(`${event.title}: ${event.body}`);
+    // claude-notify-toast isn't installed: fall back to VS Code's own popup,
+    // with the first line of the raw text (plugin 0.1.x wrote `body` instead).
+    const raw = String(event.text ?? event.body ?? '');
+    const line = raw.split('\n').find((s) => s.trim()) || '';
+    vscode.window.showInformationMessage(line ? `${event.title}: ${line.trim()}` : event.title);
   }
 }
 

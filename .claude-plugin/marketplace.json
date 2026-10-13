@@ -23,7 +23,7 @@
       "name": "vscode-notify",
       "description": "Desktop notifications on the computer you're sitting at when Claude finishes or needs you, even from WSL, dev containers or Remote-SSH. Pairs with two small VS Code extensions.",
       "source": "./vscode-notify",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "productivity",
       "tags": [
         "hook",

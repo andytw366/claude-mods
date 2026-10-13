@@ -2,7 +2,7 @@
   "name": "claude-notify-toast",
   "displayName": "Claude Notify Toast",
   "description": "Shows Claude Code notifications from Claude Notify Bridge as native desktop notifications on the machine you're sitting at.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "andytw366",
   "license": "MIT",
   "repository": {
@@ -25,6 +25,10 @@
       {
         "command": "claudeNotify.test",
         "title": "Claude Notify: Send a test notification"
+      },
+      {
+        "command": "claudeNotify.testNeeds",
+        "title": "Claude Notify: Send a test 'needs you' notification"
       }
     ],
     "configuration": {
@@ -41,11 +45,11 @@
         },
         "claudeNotify.windowsAppName": {
           "type": "string",
-          "default": "VS Code Claude",
-          "description": "App name shown on Windows notifications, with VS Code's icon. Leave empty to show them as Visual Studio Code itself."
+          "default": "Claude Notify",
+          "description": "App name shown on Windows notifications, with the extension's own icon. Leave empty to show them as Visual Studio Code itself."
         }
       }
     }
   },
-  "icon": "icon.png"
+  "icon": "icon-128.png"
 }
