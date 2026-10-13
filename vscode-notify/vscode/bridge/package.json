@@ -1,0 +1,25 @@
+{
+  "name": "claude-notify-bridge",
+  "displayName": "Claude Notify Bridge",
+  "description": "Runs where Claude Code runs (WSL, dev container, Remote-SSH host) and forwards its notifications to Claude Notify Toast on your local machine.",
+  "version": "0.1.0",
+  "publisher": "andytw366",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/andytw366/claude-mods" },
+  "engines": { "vscode": "^1.80.0" },
+  "extensionKind": ["workspace"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Claude Notify",
+      "properties": {
+        "claudeNotify.onlyThisWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only notify for Claude sessions whose folder is inside this window's workspace. Turn off to get every session on this machine."
+        }
+      }
+    }
+  }
+}
