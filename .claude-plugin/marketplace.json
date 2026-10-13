@@ -5,5 +5,19 @@
     "url": "https://github.com/andytw366"
   },
   "description": "andytw366's Claude Code mods.",
-  "plugins": []
+  "plugins": [
+    {
+      "name": "desktop-diagram-hint",
+      "description": "In Claude desktop's Code tab, tells Claude to draw diagrams with the built-in visualize widget instead of mermaid blocks.",
+      "source": "./desktop-diagram-hint",
+      "version": "0.1.0",
+      "category": "appearance",
+      "tags": [
+        "hook",
+        "desktop",
+        "diagrams",
+        "mermaid"
+      ]
+    }
+  ]
 }
