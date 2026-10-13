@@ -2,31 +2,50 @@
   "name": "claude-notify-toast",
   "displayName": "Claude Notify Toast",
   "description": "Shows Claude Code notifications from Claude Notify Bridge as native desktop notifications on the machine you're sitting at.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "andytw366",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/andytw366/claude-mods" },
-  "engines": { "vscode": "^1.80.0" },
-  "extensionKind": ["ui"],
-  "activationEvents": ["onCommand:claudeNotify.toast"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andytw366/claude-mods"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onCommand:claudeNotify.toast",
+    "onUri"
+  ],
   "main": "./extension.js",
   "contributes": {
-    "commands": [{ "command": "claudeNotify.test", "title": "Claude Notify: Send a test notification" }],
+    "commands": [
+      {
+        "command": "claudeNotify.test",
+        "title": "Claude Notify: Send a test notification"
+      }
+    ],
     "configuration": {
       "title": "Claude Notify",
       "properties": {
         "claudeNotify.when": {
           "type": "string",
-          "enum": ["unfocused", "always"],
+          "enum": [
+            "unfocused",
+            "always"
+          ],
           "default": "unfocused",
           "description": "Notify only while this VS Code window isn't focused, or always."
         },
-        "claudeNotify.windowsAppId": {
+        "claudeNotify.windowsAppName": {
           "type": "string",
-          "default": "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe",
-          "description": "Windows AppUserModelID the toast is shown under. The default (Windows PowerShell) is registered on every Windows machine."
+          "default": "VS Code Claude",
+          "description": "App name shown on Windows notifications, with VS Code's icon. Leave empty to show them as Visual Studio Code itself."
         }
       }
     }
-  }
+  },
+  "icon": "icon.png"
 }

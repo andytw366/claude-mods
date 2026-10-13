@@ -43,9 +43,11 @@ VS Code routes the command between the two extension hosts itself, so no ports o
 | --- | --- | --- |
 | `claudeNotify.when` | `unfocused` | Notify only while the VS Code window isn't focused, or `always` |
 | `claudeNotify.onlyThisWorkspace` | `true` | Only sessions whose folder is inside this window's workspace |
-| `claudeNotify.windowsAppId` | Windows PowerShell | AppUserModelID the Windows toast is shown under |
+| `claudeNotify.windowsAppName` | `VS Code Claude` | App name on Windows notifications, shown with the extension's own icon. Empty: show them as Visual Studio Code |
 
 ## Notes
+
+- On Windows, clicking a notification brings back the VS Code window it came from, including Remote-SSH and dev container windows. The first click may ask whether to let Claude Notify Toast open the link; tick "don't ask again".
 
 - Claude must run on the same host as the window's VS Code server (the bridge reads `~/.claude` there). A window opened locally while Claude runs in a separate WSL or SSH terminal won't see the events.
 - Sessions from the Claude desktop app are skipped; the app has its own notifications.
