@@ -1,6 +1,6 @@
 {
   "name": "vscode-notify",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Desktop notifications on the computer you're sitting at when Claude finishes or needs you, even when Claude runs in WSL, a dev container or over Remote-SSH. Pairs with two small VS Code extensions.",
   "author": {
     "name": "andytw366",

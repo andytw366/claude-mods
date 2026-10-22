@@ -33,8 +33,9 @@ if [ "$event" = "Stop" ] && [ -f "$start" ]; then
 fi
 
 name="$(date +%s%N)-$$.json"
-jq -c --argjson elapsed "$elapsed" '{
+jq -c --argjson elapsed "$elapsed" --arg session "$session" '{
   event: .hook_event_name,
+  session: $session,
   cwd: .cwd,
   title: (.cwd | split("/") | map(select(. != "")) | last // "Claude Code"),
   text: ((if .hook_event_name == "Stop" then .last_assistant_message else .message end) // "" | .[:4000]),

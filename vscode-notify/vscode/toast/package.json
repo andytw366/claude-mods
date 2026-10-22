@@ -2,7 +2,7 @@
   "name": "claude-notify-toast",
   "displayName": "Claude Notify Toast",
   "description": "Shows Claude Code notifications from Claude Notify Bridge as native desktop notifications on the machine you're sitting at.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "andytw366",
   "license": "MIT",
   "repository": {

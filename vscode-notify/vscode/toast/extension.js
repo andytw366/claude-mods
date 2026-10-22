@@ -5,8 +5,9 @@
 //
 // On Windows, clicking the toast (or its button) opens a vscode:// link made by
 // asExternalUri, which carries this window's id, so VS Code routes it back here
-// and focuses this window. The same id tags the toast, so a window's newer toast
-// replaces its older one in the notification center.
+// and focuses this window. The same id, plus the session's, tags the toast, so a
+// session's newer toast replaces its older one in the notification center while
+// two sessions in one window keep one each.
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
@@ -101,7 +102,7 @@ function where() {
   return text.environment(vscode.env.remoteName, folder && folder.uri.authority);
 }
 
-async function windowsEnv(needs) {
+async function windowsEnv(needs, session) {
   const name = vscode.workspace.getConfiguration('claudeNotify').get('windowsAppName') || '';
   let uri = '';
   try {
@@ -111,6 +112,8 @@ async function windowsEnv(needs) {
     // No click-to-focus or tag, but the toast still shows.
   }
   const windowId = (/\bwindowId=(\d+)/.exec(uri) || [])[1] || '';
+  // Windows caps a tag at 64 characters; plugin 0.2.0 and older send no session.
+  const tag = windowId && [windowId, String(session || '').slice(0, 12)].filter(Boolean).join('.');
   const logo = path.join(root, needs ? 'status-needs-96.png' : 'status-done-96.png');
   return {
     CLAUDE_NOTIFY_APPID: name ? OWN_APP_ID : vscodeAppId(),
@@ -118,7 +121,7 @@ async function windowsEnv(needs) {
     CLAUDE_NOTIFY_ICON: path.join(root, 'icon-256.png'),
     CLAUDE_NOTIFY_LOGO: fs.existsSync(logo) ? pathToFileURL(logo).href : '',
     CLAUDE_NOTIFY_URI: uri,
-    CLAUDE_NOTIFY_TAG: windowId,
+    CLAUDE_NOTIFY_TAG: tag,
     CLAUDE_NOTIFY_NEEDS: needs ? '1' : '',
     CLAUDE_NOTIFY_BUTTON: zh() ? '切換到視窗' : 'Switch to window',
   };
@@ -133,7 +136,7 @@ async function notify(n) {
       return run(
         'powershell.exe',
         ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(WINDOWS_TOAST, 'utf16le').toString('base64')],
-        { ...env, ...(await windowsEnv(n.needs)) },
+        { ...env, ...(await windowsEnv(n.needs, n.session)) },
       );
     case 'darwin':
       return run(

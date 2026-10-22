@@ -90,7 +90,7 @@ function environment(remoteName, authority) {
   }
 }
 
-// event: {event, title, text, elapsed} from the hook (plugin 0.1.x wrote `body`).
+// event: {event, session, title, text, elapsed} from the hook (plugin 0.1.x wrote `body`).
 // where: environment label; zh: VS Code is in Chinese.
 function present(event, where, zh) {
   const needs = event.event === 'Notification';
@@ -101,6 +101,7 @@ function present(event, where, zh) {
   const info = needs ? waiting : duration(event.elapsed, zh);
   return {
     needs,
+    session: typeof event.session === 'string' ? event.session : '',
     title: title(event.title),
     body: body || (needs ? waiting : done),
     attribution: [where, info].filter(Boolean).join(' · ') || done,

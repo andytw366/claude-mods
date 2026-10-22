@@ -48,7 +48,7 @@ VS Code routes the command between the two extension hosts itself, so no ports o
 | Bottom line | `SSH: host · 3m 12s` (environment · time the turn took) | `SSH: host · Needs you` |
 | Button, sound | none, default sound | **Switch to window**, reminder sound; stays on screen until handled |
 
-Each window's newer notification replaces its older one in the notification center. macOS and Linux show the same words with ✅ / 🔔 before the title.
+Each session's newer notification replaces its older one in the notification center; two sessions in the same window keep one each. macOS and Linux show the same words with ✅ / 🔔 before the title.
 
 ## Settings
 
