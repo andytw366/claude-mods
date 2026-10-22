@@ -11,8 +11,8 @@ flowchart LR
 
 | Part | Runs on | Does |
 | --- | --- | --- |
-| Claude Code plugin (`hooks/notify.sh`) | where Claude runs | Notes when each turn starts; on `Stop` and on permission prompts, writes a small JSON file (raw text, elapsed time) to `~/.claude/vscode-notify` |
-| `claude-notify-bridge` (workspace extension) | VS Code server, where Claude runs | Watches that folder and calls `claudeNotify.toast` for sessions inside its window's workspace |
+| Claude Code plugin (`hooks/notify.sh`) | where Claude runs | On each prompt, `Stop` and permission prompt, copies the hook's raw JSON to `~/.claude/vscode-notify`, tagged with the window whose terminal runs the session. Needs only bash, so it runs in Git Bash on Windows too |
+| `claude-notify-bridge` (workspace extension) | VS Code server, where Claude runs | Watches that folder, works out the turn's length, and calls `claudeNotify.toast` for sessions started in its window's terminals (or, if started elsewhere, inside its workspace) |
 | `claude-notify-toast` (UI extension) | your local machine | Turns the event into the notification's words and shows it: Windows toast, macOS Notification Center, or `notify-send` on Linux |
 
 VS Code routes the command between the two extension hosts itself, so no ports or servers are involved. Because the toast extension always runs on the client, the same setup notifies whichever computer you're working from: local, WSL, dev container, or Remote-SSH.
@@ -55,7 +55,7 @@ Each session's newer notification replaces its older one in the notification cen
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `claudeNotify.when` | `unfocused` | Notify only while the VS Code window isn't focused, or `always` |
-| `claudeNotify.onlyThisWorkspace` | `true` | Only sessions whose folder is inside this window's workspace |
+| `claudeNotify.onlyThisWorkspace` | `true` | Only sessions started in this window's terminals; for sessions started elsewhere, those whose folder is inside this window's workspace |
 | `claudeNotify.windowsAppName` | `Claude Notify` | App name on Windows notifications, shown with the extension's own icon. Empty: show them as Visual Studio Code |
 
 ## Notes
@@ -64,5 +64,6 @@ Each session's newer notification replaces its older one in the notification cen
 
 - Claude must run on the same host as the window's VS Code server (the bridge reads `~/.claude` there). A window opened locally while Claude runs in a separate WSL or SSH terminal won't see the events.
 - Sessions from the Claude desktop app are skipped; the app has its own notifications.
-- Two windows open on the same folder (say, one at home and one over SSH from a laptop) both get the notification.
+- A session started in a window's integrated terminal notifies that window only. Terminals opened before the bridge was installed or the window reloaded carry an old id and fall back to the folder check: two windows on the same folder then both notify. Reopen the terminal to fix it.
+- Native Windows works too: Claude Code runs the hook in Git Bash, and both extensions run locally.
 - If the toast extension is missing, the bridge falls back to a VS Code popup.

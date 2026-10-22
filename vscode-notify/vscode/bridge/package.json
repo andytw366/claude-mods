@@ -2,7 +2,7 @@
   "name": "claude-notify-bridge",
   "displayName": "Claude Notify Bridge",
   "description": "Runs where Claude Code runs (WSL, dev container, Remote-SSH host) and forwards its notifications to Claude Notify Toast on your local machine.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "andytw366",
   "license": "MIT",
   "repository": {
@@ -26,7 +26,7 @@
         "claudeNotify.onlyThisWorkspace": {
           "type": "boolean",
           "default": true,
-          "description": "Only notify for Claude sessions whose folder is inside this window's workspace. Turn off to get every session on this machine."
+          "description": "Only notify for Claude sessions started in this window's terminals, or, for sessions started elsewhere, whose folder is inside this window's workspace. Turn off to get every session on this machine."
         }
       }
     }

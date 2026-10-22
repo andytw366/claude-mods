@@ -1,45 +1,21 @@
 #!/usr/bin/env bash
 # UserPromptSubmit / Stop / Notification hook for vscode-notify.
-# UserPromptSubmit only notes when the turn started, so Stop can report how long
-# it took; it prints nothing, since anything it prints is added to the prompt.
-# Stop and Notification drop a small JSON file in ~/.claude/vscode-notify. The
-# claude-notify-bridge extension, running in the VS Code server on this same
-# machine, picks it up and hands it to claude-notify-toast on your local machine,
-# which turns the raw text into the notification's words.
+# Copies the hook's JSON, untouched, into ~/.claude/vscode-notify, wrapped with
+# the id of the VS Code window whose terminal runs this session (the bridge puts
+# it in CLAUDE_NOTIFY_WINDOW). The claude-notify-bridge extension in that VS Code
+# server reads it, picks out what the notification needs and hands it to
+# claude-notify-toast on your local machine.
+# Only bash and coreutils, no jq, so it also runs in Git Bash on Windows. It
+# prints nothing, since on UserPromptSubmit anything printed joins the prompt.
 # The desktop app shows its own notifications, so its sessions are skipped.
 [ "$CLAUDE_CODE_ENTRYPOINT" = "claude-desktop" ] && exit 0
-command -v jq >/dev/null || exit 0
 dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/vscode-notify"
 mkdir -p "$dir" || exit 0
+# .start-* files are left over from plugin 0.2.x.
+find "$dir" -maxdepth 1 \( -name '*.json' -mmin +2 -o -name '.start-*' \) -delete 2>/dev/null
 
-input=$(cat)
-event=$(jq -r '.hook_event_name // empty' <<<"$input" 2>/dev/null)
-session=$(jq -r '.session_id // empty' <<<"$input" 2>/dev/null | tr -cd 'A-Za-z0-9_-')
-start="$dir/.start-${session:-unknown}"
-now=$(date +%s)
-
-if [ "$event" = "UserPromptSubmit" ]; then
-  echo "$now" >"$start"
-  find "$dir" -name '.start-*' -mmin +1440 -delete 2>/dev/null
-  exit 0
-fi
-
-find "$dir" -name '*.json' -mmin +2 -delete 2>/dev/null
-elapsed=null
-if [ "$event" = "Stop" ] && [ -f "$start" ]; then
-  began=$(cat "$start")
-  [[ $began =~ ^[0-9]+$ ]] && elapsed=$((now - began))
-  rm -f "$start"
-fi
-
-name="$(date +%s%N)-$$.json"
-jq -c --argjson elapsed "$elapsed" --arg session "$session" '{
-  event: .hook_event_name,
-  session: $session,
-  cwd: .cwd,
-  title: (.cwd | split("/") | map(select(. != "")) | last // "Claude Code"),
-  text: ((if .hook_event_name == "Stop" then .last_assistant_message else .message end) // "" | .[:4000]),
-  elapsed: $elapsed
-}' <<<"$input" >"$dir/.$name" 2>/dev/null && mv "$dir/.$name" "$dir/$name"
+window=$(printf %s "$CLAUDE_NOTIFY_WINDOW" | tr -cd 'A-Za-z0-9-')
+name="$(date +%s)-$$-$RANDOM.json"
+{ printf '{"window":"%s","hook":' "$window"; cat; printf '}'; } >"$dir/.$name" && mv "$dir/.$name" "$dir/$name"
 rm -f "$dir/.$name"
 exit 0
