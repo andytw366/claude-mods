@@ -1,48 +1,50 @@
 # vscode-images
 
-Pictures inside Claude Code when it runs in VS Code's integrated terminal. Each PNG Claude reads with the `Read` tool is drawn under that tool row, in the transcript.
+Shows the pictures Claude wants you to see in a floating VS Code window, one tab each, while the keyboard stays in the terminal where Claude Code runs. Claude reads plenty of pictures for itself (checking a chart it just drew, say); only the ones it means for you open.
 
-VS Code's terminal (1.110 and later) can draw iTerm2 inline images, but Claude Code never sends it any: it asks the terminal its name, VS Code answers `xterm.js`, and Claude Code only draws pictures for kitty, Ghostty and iTerm2 3.5 or later. This plugin has two parts:
+```mermaid
+flowchart LR
+  A[Claude calls ShowImage] -->|JSON file| B[Claude Image Opener extension]
+  B --> C[Floating window, a tab per picture]
+```
 
-| Part | Does |
-| --- | --- |
-| `bin/claude-iterm` | A launcher that runs Claude Code in a pseudo-terminal and answers its terminal-name query (XTVERSION) as iTerm2 3.5, so Claude Code sends iTerm2 images. Every other byte passes through, except the placeholder cells Claude Code fills beneath a picture, which VS Code would draw as boxes; each becomes a space |
-| The mod (`hooks/register.tsx`) | After each `Read` of a PNG, shrinks the picture with Pillow and draws it under the tool row with Claude Code's `Image` element |
+| Part | Runs on | Does |
+| --- | --- | --- |
+| Claude Code plugin (`hooks/register.ts`) | where Claude runs | A mod that gives Claude a `ShowImage` tool. Each call drops one small JSON file per picture into `~/.claude/vscode-images`, tagged with the window whose terminal runs the session |
+| `claude-image-opener` (workspace extension) | VS Code server, where Claude runs | Watches that folder and opens the pictures meant for its window in a floating window: the first picture makes the window, later ones join it as tabs. Then it hands the keyboard back to the terminal |
+
+The extension does what the `code` command cannot: `code --reuse-window picture.png` opens a tab too, but always moves the keyboard to it.
+
+## Install
+
+1. Install the Claude Code plugin where Claude runs:
+
+   ```bash
+   claude plugin marketplace add andytw366/claude-mods
+   claude plugin install vscode-images@andytw366-mods
+   ```
+
+2. Install the extension from `dist/` (or build it, below) into the VS Code that runs Claude Code's terminal. From that terminal:
+
+   ```bash
+   code --install-extension ~/.claude/plugins/marketplaces/andytw366-mods/vscode-images/dist/claude-image-opener-0.2.0.vsix
+   ```
+
+3. Open a new terminal, so it carries the window's id, and start Claude Code there.
+
+Building the extension:
+
+```bash
+cd vscode-images/vscode/opener && npx @vscode/vsce package --no-dependencies -o ../../dist/
+```
 
 ## Requirements
 
-- VS Code 1.110 or later, with `terminal.integrated.enableImages` on and `terminal.integrated.gpuAcceleration` left at `auto` (with it `off`, VS Code draws no pictures)
-- Claude Code with mods, in fullscreen mode (`"tui": "fullscreen"` in `~/.claude/settings.json`)
-- `python3` with Pillow where Claude runs. Without Pillow the picture is sent unshrunk, which is slower
-
-## Use
-
-Install the plugin, then start Claude Code through the launcher instead of directly:
-
-```bash
-claude plugin marketplace add andytw366/claude-mods
-claude plugin install vscode-images@andytw366-mods
-~/.claude/plugins/marketplaces/andytw366-mods/vscode-images/bin/claude-iterm claude
-```
-
-Anything after `claude-iterm` is the command it runs, so `claude-iterm claude --continue` works too. An alias saves typing:
-
-```bash
-alias claude-img='~/.claude/plugins/marketplaces/andytw366-mods/vscode-images/bin/claude-iterm claude'
-```
+- VS Code 1.86 or later (floating editor windows)
+- Claude Code with mods
 
 ## Limits
 
-- **Sharpness is capped by the width.** VS Code resamples a picture to the cells it covers, 7 by 17 logical pixels each, before display scaling enlarges it. A picture 100 cells wide is therefore 700 pixels across whatever was sent, so the mod draws at most 100 cells wide and shrinks the picture to 700 pixels and 256 colours. Wider is sharper and slower; change `MAX_COLUMNS` in `hooks/register.tsx`.
-- **Redrawing resends the picture.** Claude Code sends the whole picture again whenever it repaints that part of the screen, so a large picture makes the transcript stutter while a reply streams in. The shrinking above is what keeps that tolerable.
-- **Height.** A picture is never taller than three quarters of the screen; a picture taller than the screen was not drawn at all in testing.
-- **PNG only, up to 2 MB.**
-- **The launcher must stay in front of Claude Code.** Started without it, Claude Code draws a dim `[picture: …]` line in the picture's place.
-
-## Debugging the launcher
-
-| Variable | Effect |
-| --- | --- |
-| `CLAUDE_ITERM_LOG=/tmp/claude-iterm.log` | Logs every terminal query and reply, each picture sent and any placeholder cells blanked |
-| `CLAUDE_ITERM_NAME="iTerm2 3.5.0"` | The name given in answer to XTVERSION |
-| `CLAUDE_ITERM_DROP_KITTY=1` | Drops Claude Code's kitty graphics query. Off by default: VS Code answers it with OK, and with the query dropped Claude Code sent no picture at all |
+- **The floating window takes the keyboard once.** When the first picture makes the window, the operating system focuses it, and VS Code has no command to bring the main window back to the front. Later pictures open in the existing window and leave the keyboard in the terminal. Keep the window open (move it to another screen, say) to avoid that.
+- **Terminals opened before the extension started** have no window id. Pictures shown from them open only in windows whose workspace holds the picture, and Claude is told so.
+- **Pictures VS Code previews:** PNG, JPEG, GIF, WebP, BMP, ICO and SVG.
