@@ -1,0 +1,10 @@
+{
+  "name": "vscode-images",
+  "version": "0.1.0",
+  "description": "Pictures inside Claude Code in VS Code's terminal: each PNG Claude reads is drawn under its Read row, through a launcher that lets Claude Code send iTerm2 images VS Code can draw.",
+  "author": {
+    "name": "andytw366",
+    "url": "https://github.com/andytw366"
+  },
+  "license": "MIT"
+}
