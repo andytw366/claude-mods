@@ -31,6 +31,19 @@
         "vscode",
         "remote-ssh"
       ]
+    },
+    {
+      "name": "vscode-images",
+      "description": "Pictures inside Claude Code in VS Code's terminal: each PNG Claude reads is drawn under its Read row, through a launcher that lets Claude Code send iTerm2 images VS Code can draw.",
+      "source": "./vscode-images",
+      "version": "0.1.0",
+      "category": "appearance",
+      "tags": [
+        "mod",
+        "images",
+        "vscode",
+        "terminal"
+      ]
     }
   ]
 }
