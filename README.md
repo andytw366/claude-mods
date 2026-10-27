@@ -5,7 +5,7 @@ andytw366's Claude Code mods.
 | Plugin | What it does |
 | --- | --- |
 | [desktop-diagram-hint](desktop-diagram-hint) | In Claude desktop's Code tab, tells Claude to draw diagrams with the built-in visualize widget instead of mermaid blocks |
-| [vscode-images](vscode-images) | Pictures inside Claude Code in VS Code's terminal: each PNG Claude reads is drawn under its Read row |
+| [vscode-images](vscode-images) | Shows the pictures Claude wants you to see in a floating VS Code window, leaving the keyboard in the terminal |
 | [vscode-notify](vscode-notify) | Desktop notifications where you're sitting when Claude finishes or needs you, even from WSL, dev containers or Remote-SSH |
 
 ```bash

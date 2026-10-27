@@ -1,0 +1,22 @@
+{
+  "name": "claude-image-opener",
+  "displayName": "Claude Image Opener",
+  "description": "Shows the pictures Claude Code asks to show in a floating VS Code window, leaving the keyboard in the terminal.",
+  "version": "0.2.0",
+  "publisher": "andytw366",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andytw366/claude-mods"
+  },
+  "engines": {
+    "vscode": "^1.86.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js"
+}
