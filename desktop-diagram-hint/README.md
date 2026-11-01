@@ -1,11 +1,12 @@
 # desktop-diagram-hint
 
-[prismantis](https://github.com/NahumLitvin/prismantis) draws mermaid blocks in the terminal, but not in Claude desktop's Code tab, where they show as raw source. This plugin adds a short note to every prompt sent from the desktop app, telling Claude to:
+[prismantis](https://github.com/NahumLitvin/prismantis) draws mermaid and `figure` blocks in the terminal, but not in Claude desktop (its Code tab, or a cloud task opened in the app), where they show as raw source and `{role:text}` color markup shows as literal braces. This plugin adds a short note to every prompt sent from the desktop app, telling Claude to:
 
-- draw diagrams with the desktop app's own visualize widget instead of mermaid, including when you ask for prismantis or mermaid by name;
+- draw diagrams with the desktop app's own visualize widget instead of mermaid or `figure` blocks, including when you ask for prismantis, mermaid or a figure by name;
+- never write prismantis's `{role:text}` color markup;
 - put commands in fenced code blocks so they get a copy (and Run) button.
 
-The note is model-only; you don't see it. Terminal sessions (`CLAUDE_CODE_ENTRYPOINT` other than `claude-desktop`) get nothing, so prismantis works there as before. The note's text lives in `hooks/hint.txt`.
+The note is model-only; you don't see it. Only sessions with `CLAUDE_CODE_ENTRYPOINT` set to `claude-desktop` (Code tab) or `remote_cowork` (cloud task) get it; terminal sessions get nothing, so prismantis works there as before. The note's text lives in `hooks/hint.txt`.
 
 ## Install
 

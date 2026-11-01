@@ -8,15 +8,16 @@
   "plugins": [
     {
       "name": "desktop-diagram-hint",
-      "description": "In Claude desktop's Code tab, tells Claude to draw diagrams with the built-in visualize widget instead of mermaid blocks.",
+      "description": "In Claude desktop (Code tab and cloud tasks), tells Claude to draw diagrams with the built-in visualize widget instead of mermaid or prismantis figure blocks.",
       "source": "./desktop-diagram-hint",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "appearance",
       "tags": [
         "hook",
         "desktop",
         "diagrams",
-        "mermaid"
+        "mermaid",
+        "figure"
       ]
     },
     {

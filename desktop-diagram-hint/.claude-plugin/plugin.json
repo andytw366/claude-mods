@@ -1,7 +1,10 @@
 {
   "name": "desktop-diagram-hint",
-  "version": "0.1.0",
-  "description": "In Claude desktop's Code tab, tells Claude to draw diagrams with the built-in visualize widget instead of mermaid blocks, which only render in the terminal (via prismantis).",
-  "author": { "name": "andytw366", "url": "https://github.com/andytw366" },
+  "version": "0.2.0",
+  "description": "In Claude desktop (Code tab and cloud tasks), tells Claude to draw diagrams with the built-in visualize widget instead of mermaid or prismantis figure blocks, which only render in the terminal.",
+  "author": {
+    "name": "andytw366",
+    "url": "https://github.com/andytw366"
+  },
   "license": "MIT"
 }
