@@ -56,7 +56,7 @@ The same notification also works without VS Code, for Claude sessions in a WezTe
 | `chinese` | `true` | Chinese words, as when VS Code is in Chinese; `false` for English |
 | `app_name` | `Claude Notify` | App name shown on the notification |
 
-The bottom line shows `SSH: host` when the tab runs `ssh`, `WSL` for `wsl.exe`. There is no **Switch to window** button, since WezTerm has no link to open. Inside tmux, the variable passes through only with `set -g allow-passthrough on`. Claude running natively on Windows has no terminal for the hook to write to, so use VS Code there.
+The bottom line shows `SSH: host` when the tab runs `ssh`, `WSL` for `wsl.exe`. Clicking the notification, or its **Switch to window** button, brings WezTerm to the front on the tab and pane Claude runs in. For that, the first notification registers a `claude-wezterm:` link for your Windows user and writes the script it runs to `%LOCALAPPDATA%\ClaudeNotify\wezterm-activate.ps1`; nothing needs admin rights. Inside tmux, the variable passes through only with `set -g allow-passthrough on`. Claude running natively on Windows has no terminal for the hook to write to, so use VS Code there.
 
 ## What the notification shows (Windows)
 

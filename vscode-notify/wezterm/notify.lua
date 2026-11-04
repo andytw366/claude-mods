@@ -151,6 +151,10 @@ end
 
 -- ---- Show it with the same PowerShell toast the VS Code extension uses ----
 -- Every value goes in base64, so the script itself stays plain ASCII.
+-- Clicking the toast or its button opens claude-wezterm:pane/<id>. The script
+-- registers that link type for the current user (no admin) and writes the
+-- small script it runs, ACTIVATE_PS, so nothing needs setting up by hand.
+local URI_SCHEME = 'claude-wezterm'
 local TOAST_PS = [[
 $ErrorActionPreference = 'Stop'
 function D($s) { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($s)) }
@@ -177,11 +181,70 @@ if ('%s' -eq '1') {
   $audio.SetAttribute('src', 'ms-winsoundevent:Notification.Reminder')
   [void]$toastEl.AppendChild($audio)
 }
+$uri = D '%s'
+if ($uri) {
+  $dir = Join-Path $env:LOCALAPPDATA 'ClaudeNotify'
+  [void](New-Item -ItemType Directory -Path $dir -Force)
+  $handler = Join-Path $dir 'wezterm-activate.ps1'
+  [IO.File]::WriteAllText($handler, (D '%s'))
+  $scheme = D '%s'
+  $cls = "HKCU:\Software\Classes\$scheme"
+  $cmd = Join-Path $cls 'shell\open\command'
+  if (-not (Test-Path $cmd)) { [void](New-Item -Path $cmd -Force) }
+  Set-ItemProperty -Path $cls -Name '(default)' -Value "URL:$scheme"
+  Set-ItemProperty -Path $cls -Name 'URL Protocol' -Value ''
+  $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+  Set-ItemProperty -Path $cmd -Name '(default)' -Value ('"' + $ps + '" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $handler + '" "%%1"')
+  $toastEl.SetAttribute('activationType', 'protocol')
+  $toastEl.SetAttribute('launch', $uri)
+  $actions = $x.CreateElement('actions')
+  $action = $x.CreateElement('action')
+  $action.SetAttribute('content', (D '%s'))
+  $action.SetAttribute('arguments', $uri)
+  $action.SetAttribute('activationType', 'protocol')
+  [void]$actions.AppendChild($action)
+  [void]$toastEl.AppendChild($actions)
+}
 $toast = [Windows.UI.Notifications.ToastNotification]::new($x)
 $tag = D '%s'
 if ($tag) { $toast.Tag = $tag; $toast.Group = 'claude-wezterm' }
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show($toast)
 ]]
+
+-- Run on a click, with the link as its argument. A program started from a
+-- toast click may bring a window to the front; it hands that right on to
+-- WezTerm, then asks WezTerm to show the pane (wezterm cli activate-pane
+-- switches to its tab and focuses its window). If WezTerm still isn't in
+-- front, it brings the WezTerm window forward itself.
+local ACTIVATE_PS = [[
+param([string]$Uri)
+if ($Uri -notmatch 'pane/(\d+)') { exit 1 }
+$pane = $Matches[1]
+Add-Type -Namespace ClaudeNotify -Name Win -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+'@
+[void][ClaudeNotify.Win]::AllowSetForegroundWindow(-1)
+& '@WEZTERM@' cli activate-pane --pane-id $pane
+Start-Sleep -Milliseconds 300
+$gui = @(Get-Process wezterm-gui -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+[uint32]$fg = 0
+[void][ClaudeNotify.Win]::GetWindowThreadProcessId([ClaudeNotify.Win]::GetForegroundWindow(), [ref]$fg)
+if ($gui.Count -ge 1 -and -not ($gui.Id -contains $fg)) {
+  $h = $gui[0].MainWindowHandle
+  if ([ClaudeNotify.Win]::IsIconic($h)) { [void][ClaudeNotify.Win]::ShowWindow($h, 9) }
+  [void][ClaudeNotify.Win]::SetForegroundWindow($h)
+}
+]]
+
+local function activate_script()
+  local exe = wezterm.executable_dir .. '\\wezterm.exe'
+  return (ACTIVATE_PS:gsub('@WEZTERM@', function() return exe:gsub("'", "''") end))
+end
 
 local function show_toast(n)
   local win_path = function(p) return (p:gsub('/', '\\')) end
@@ -189,7 +252,9 @@ local function show_toast(n)
   local script = string.format(TOAST_PS,
     base64(NOTIFY_APP_ID), base64(NOTIFY_APP_NAME), base64(win_path(NOTIFY_DIR .. '/icon-256.png')),
     base64(win_path(logo)), base64(n.title), base64(n.body), base64(n.attribution),
-    n.needs and '1' or '0', base64(n.tag))
+    n.needs and '1' or '0', base64(n.tag),
+    base64(n.uri or ''), base64(activate_script()), base64(URI_SCHEME),
+    base64(ZH and '切換到視窗' or 'Switch to window'))
   -- -EncodedCommand wants UTF-16LE; the script is ASCII, so that is each byte followed by a zero.
   local utf16 = script:gsub('.', '%0\0')
   wezterm.background_child_process {
@@ -241,6 +306,7 @@ local function on_event(window, pane, value)
     body = body ~= '' and body or (needs and waiting or done),
     attribution = attribution ~= '' and attribution or done,
     tag = session:sub(1, 12),
+    uri = URI_SCHEME .. ':pane/' .. pane:pane_id(),
   }
 end
 
