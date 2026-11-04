@@ -306,6 +306,37 @@ static class ClaudeNotifyActivate {
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+
+  static bool InFront(Process gui) {
+    uint fg;
+    GetWindowThreadProcessId(GetForegroundWindow(), out fg);
+    return gui.Id == fg;
+  }
+
+  // Windows only lets a program take the foreground in some cases, and this one
+  // starts too quickly after the click for the plain call to be allowed (the
+  // taskbar button flashes instead). Borrow the current foreground window's
+  // input queue, and if that isn't enough, tap Alt, which lifts the lock.
+  static string BringForward(IntPtr h, Process gui) {
+    if (IsIconic(h)) ShowWindow(h, 9);
+    for (int i = 0; i < 10; i++) {
+      if (InFront(gui)) return i == 0 ? "already in front" : "in front after " + i + " tries";
+      uint dummy;
+      uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out dummy);
+      uint me = GetCurrentThreadId();
+      bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+      if (i >= 2) { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
+      BringWindowToTop(h);
+      SetForegroundWindow(h);
+      if (attached) AttachThreadInput(me, fgThread, false);
+      System.Threading.Thread.Sleep(30);
+    }
+    return InFront(gui) ? "in front after 10 tries" : "could not bring WezTerm forward";
+  }
 
   static int Main(string[] args) {
     Stopwatch sw = Stopwatch.StartNew();
@@ -345,14 +376,7 @@ static class ClaudeNotifyActivate {
         mark("wezterm cli activate-pane, exit " + (exited ? cli.ExitCode.ToString() : "timeout"));
       }
 
-      uint fg;
-      GetWindowThreadProcessId(GetForegroundWindow(), out fg);
-      if (gui != null && gui.Id != fg) {
-        IntPtr h = gui.MainWindowHandle;
-        if (IsIconic(h)) ShowWindow(h, 9);
-        SetForegroundWindow(h);
-        mark("brought WezTerm forward");
-      }
+      if (gui != null) mark(BringForward(gui.MainWindowHandle, gui));
       mark("done");
     } catch (Exception e) {
       mark("error: " + e.Message);
