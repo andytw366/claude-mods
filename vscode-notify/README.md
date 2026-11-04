@@ -37,6 +37,27 @@ VS Code routes the command between the two extension hosts itself, so no ports o
 
 4. Run **Claude Notify: Send a test notification** (or **…'needs you' notification**) from the command palette.
 
+## WezTerm
+
+The same notification also works without VS Code, for Claude sessions in a WezTerm tab on Windows, including ones running over SSH or in WSL. Outside VS Code's terminal, the hook also sends each event to the terminal as a WezTerm user variable (`claude_notify`, OSC 1337), and `wezterm/notify.lua` shows the toast. Other terminals ignore the variable; set `CLAUDE_NOTIFY_TERMINAL=0` where Claude runs to stop sending it.
+
+1. Install the Claude Code plugin where Claude runs, as above. The VS Code extensions aren't needed.
+2. Copy `wezterm/notify.lua` and the three PNGs from `vscode/toast` (`icon-256.png`, `status-done-96.png`, `status-needs-96.png`) next to your WezTerm config.
+3. Add to the config:
+
+   ```lua
+   require('notify').setup {}
+   ```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `images` | WezTerm's config folder | Folder with the three PNGs |
+| `only_when_away` | `true` | Skip the event when you're looking at that tab |
+| `chinese` | `true` | Chinese words, as when VS Code is in Chinese; `false` for English |
+| `app_name` | `Claude Notify` | App name shown on the notification |
+
+The bottom line shows `SSH: host` when the tab runs `ssh`, `WSL` for `wsl.exe`. There is no **Switch to window** button, since WezTerm has no link to open. Inside tmux, the variable passes through only with `set -g allow-passthrough on`. Claude running natively on Windows has no terminal for the hook to write to, so use VS Code there.
+
 ## What the notification shows (Windows)
 
 | Part | Done | Needs you |
