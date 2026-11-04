@@ -24,8 +24,24 @@ name="$(date +%s)-$$-$RANDOM.json"
 rm -f "$dir/.$name"
 
 # The terminal: OSC 1337 SetUserVar, base64 as the protocol wants. Written to
-# /dev/tty in one go; a session with no terminal (claude -p in a pipe) skips it.
-# Inside tmux it goes through tmux's passthrough (needs allow-passthrough on).
+# the session's terminal in one go; a session with no terminal (claude -p in a
+# pipe) skips it. Inside tmux it goes through tmux's passthrough (needs
+# allow-passthrough on).
+# Claude Code starts hooks in a new session with no controlling terminal, so
+# /dev/tty fails there (ENXIO). Then the terminal is found by walking up the
+# parent processes to the first one that has one, i.e. claude itself.
+find_tty() {
+  if { : >/dev/tty; } 2>/dev/null; then echo /dev/tty; return; fi
+  p=$PPID
+  while [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null; do
+    t=$(ps -o tty= -p "$p" 2>/dev/null | tr -d ' ')
+    case "$t" in
+      ''|*'?'*) ;;
+      *) [ -w "/dev/$t" ] && { echo "/dev/$t"; return; } ;;
+    esac
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+  done
+}
 if [ -z "$window" ] && [ "$TERM_PROGRAM" != "vscode" ] && [ "${CLAUDE_NOTIFY_TERMINAL:-1}" != "0" ] && [ -f "$dir/$name" ]; then
   value=$(base64 <"$dir/$name" | tr -d '\n')
   if [ -n "$TMUX" ]; then
@@ -33,6 +49,7 @@ if [ -z "$window" ] && [ "$TERM_PROGRAM" != "vscode" ] && [ "${CLAUDE_NOTIFY_TER
   else
     seq=$(printf '\033]1337;SetUserVar=claude_notify=%s\007' "$value")
   fi
-  { printf %s "$seq" >/dev/tty; } 2>/dev/null
+  tty_dev=$(find_tty)
+  [ -n "$tty_dev" ] && { printf %s "$seq" >"$tty_dev"; } 2>/dev/null
 fi
 exit 0
