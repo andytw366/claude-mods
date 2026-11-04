@@ -219,21 +219,39 @@ if ($tag) { $toast.Tag = $tag; $toast.Group = 'claude-wezterm' }
 -- WezTerm, then asks WezTerm to show the pane (wezterm cli activate-pane
 -- switches to its tab and focuses its window). If WezTerm still isn't in
 -- front, it brings the WezTerm window forward itself.
+-- The few Windows calls it needs are compiled once into ClaudeNotifyWin.dll
+-- next to this script: compiling them on every click (Add-Type) took seconds.
+-- Each click's timings go to wezterm-activate.log, to see what is slow.
 local ACTIVATE_PS = [[
 param([string]$Uri)
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$log = @()
+function Mark($what) { $script:log += ('{0,6} ms  {1}' -f $sw.ElapsedMilliseconds, $what) }
 if ($Uri -notmatch 'pane/(\d+)') { exit 1 }
 $pane = $Matches[1]
-Add-Type -Namespace ClaudeNotify -Name Win -MemberDefinition @'
-[DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
-[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
-[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+$dll = Join-Path $PSScriptRoot 'ClaudeNotifyWin.dll'
+if (-not (Test-Path -LiteralPath $dll)) {
+  Add-Type -OutputAssembly $dll -OutputType Library -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace ClaudeNotify {
+  public static class Win {
+    [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  }
+}
 '@
+  Mark 'compiled ClaudeNotifyWin.dll'
+}
+if (-not ('ClaudeNotify.Win' -as [type])) { Add-Type -Path $dll }
+Mark 'loaded'
 [void][ClaudeNotify.Win]::AllowSetForegroundWindow(-1)
 & '@WEZTERM@' cli activate-pane --pane-id $pane
-Start-Sleep -Milliseconds 300
+Mark 'wezterm cli activate-pane'
 $gui = @(Get-Process wezterm-gui -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
 [uint32]$fg = 0
 [void][ClaudeNotify.Win]::GetWindowThreadProcessId([ClaudeNotify.Win]::GetForegroundWindow(), [ref]$fg)
@@ -241,7 +259,10 @@ if ($gui.Count -ge 1 -and -not ($gui.Id -contains $fg)) {
   $h = $gui[0].MainWindowHandle
   if ([ClaudeNotify.Win]::IsIconic($h)) { [void][ClaudeNotify.Win]::ShowWindow($h, 9) }
   [void][ClaudeNotify.Win]::SetForegroundWindow($h)
+  Mark 'brought WezTerm forward'
 }
+Mark 'done'
+Set-Content -LiteralPath (Join-Path $PSScriptRoot 'wezterm-activate.log') -Value $log
 ]]
 
 local function activate_script()
