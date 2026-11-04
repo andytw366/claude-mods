@@ -250,9 +250,21 @@ namespace ClaudeNotify {
 if (-not ('ClaudeNotify.Win' -as [type])) { Add-Type -Path $dll }
 Mark 'loaded'
 [void][ClaudeNotify.Win]::AllowSetForegroundWindow(-1)
-& '@WEZTERM@' cli activate-pane --pane-id $pane
-Mark 'wezterm cli activate-pane'
 $gui = @(Get-Process wezterm-gui -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+# A program started from a toast doesn't have WEZTERM_UNIX_SOCKET, and wezterm cli then
+# fails to find the GUI's socket and gives up after about 2 seconds. Point it at the
+# running GUI's socket (gui-sock-<pid>, which may name its target relative to its own
+# folder, so run from there), and skip loading wezterm.lua, which the cli doesn't need.
+$sockdir = Join-Path $env:USERPROFILE '.local\share\wezterm'
+foreach ($g in $gui) {
+  $sock = Join-Path $sockdir ('gui-sock-' + $g.Id)
+  # listed rather than Test-Path, which follows the link and can miss it
+  if (Get-ChildItem -LiteralPath $sockdir -Filter ('gui-sock-' + $g.Id) -Force -ErrorAction SilentlyContinue) { $env:WEZTERM_UNIX_SOCKET = $sock; break }
+}
+if (Test-Path -LiteralPath $sockdir) { Set-Location -LiteralPath $sockdir }
+Mark ('socket ' + $env:WEZTERM_UNIX_SOCKET)
+& '@WEZTERM@' -n cli --no-auto-start activate-pane --pane-id $pane
+Mark ('wezterm cli activate-pane, exit ' + $LASTEXITCODE)
 [uint32]$fg = 0
 [void][ClaudeNotify.Win]::GetWindowThreadProcessId([ClaudeNotify.Win]::GetForegroundWindow(), [ref]$fg)
 if ($gui.Count -ge 1 -and -not ($gui.Id -contains $fg)) {
