@@ -186,10 +186,19 @@ if ('%s' -eq '1') {
 }
 $uri = D '%s'
 if ($uri) {
+  # wezterm-activate.ps1 and .cs are written by notify.lua (prepare_handlers).
+  # The .cs is the same thing as a small program, which starts much faster than
+  # PowerShell; it's built here, again only when the .cs changed. PowerShell is the fallback.
   $dir = Join-Path $env:LOCALAPPDATA 'ClaudeNotify'
-  [void](New-Item -ItemType Directory -Path $dir -Force)
   $handler = Join-Path $dir 'wezterm-activate.ps1'
-  [IO.File]::WriteAllText($handler, (D '%s'))
+  $csFile = Join-Path $dir 'wezterm-activate.cs'
+  $exe = Join-Path $dir 'wezterm-activate.exe'
+  try {
+    if ((Test-Path -LiteralPath $csFile) -and (-not (Test-Path -LiteralPath $exe) -or
+        (Get-Item -LiteralPath $csFile).LastWriteTimeUtc -gt (Get-Item -LiteralPath $exe).LastWriteTimeUtc)) {
+      Add-Type -TypeDefinition ([IO.File]::ReadAllText($csFile)) -OutputAssembly $exe -OutputType WindowsApplication
+    }
+  } catch { }
   $scheme = D '%s'
   $cls = "HKCU:\Software\Classes\$scheme"
   $cmd = Join-Path $cls 'shell\open\command'
@@ -197,7 +206,9 @@ if ($uri) {
   Set-ItemProperty -Path $cls -Name '(default)' -Value "URL:$scheme"
   Set-ItemProperty -Path $cls -Name 'URL Protocol' -Value ''
   $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  Set-ItemProperty -Path $cmd -Name '(default)' -Value ('"' + $ps + '" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $handler + '" "%%1"')
+  if (Test-Path -LiteralPath $exe) { $open = '"' + $exe + '" "%%1"' }
+  else { $open = '"' + $ps + '" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $handler + '" "%%1"' }
+  Set-ItemProperty -Path $cmd -Name '(default)' -Value $open
   $toastEl.SetAttribute('activationType', 'protocol')
   $toastEl.SetAttribute('launch', $uri)
   $actions = $x.CreateElement('actions')
@@ -219,45 +230,213 @@ if ($tag) { $toast.Tag = $tag; $toast.Group = 'claude-wezterm' }
 -- WezTerm, then asks WezTerm to show the pane (wezterm cli activate-pane
 -- switches to its tab and focuses its window). If WezTerm still isn't in
 -- front, it brings the WezTerm window forward itself.
+-- The few Windows calls it needs are compiled once into ClaudeNotifyWin.dll
+-- next to this script: compiling them on every click (Add-Type) took seconds.
+-- Each click's timings go to wezterm-activate.log, to see what is slow.
 local ACTIVATE_PS = [[
 param([string]$Uri)
+$sw = [Diagnostics.Stopwatch]::StartNew()
+$log = @()
+function Mark($what) { $script:log += ('{0,6} ms  {1}' -f $sw.ElapsedMilliseconds, $what) }
 if ($Uri -notmatch 'pane/(\d+)') { exit 1 }
 $pane = $Matches[1]
-Add-Type -Namespace ClaudeNotify -Name Win -MemberDefinition @'
-[DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
-[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
-[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+$dll = Join-Path $PSScriptRoot 'ClaudeNotifyWin.dll'
+if (-not (Test-Path -LiteralPath $dll)) {
+  Add-Type -OutputAssembly $dll -OutputType Library -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+namespace ClaudeNotify {
+  public static class Win {
+    [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int pid);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  }
+}
 '@
+  Mark 'compiled ClaudeNotifyWin.dll'
+}
+if (-not ('ClaudeNotify.Win' -as [type])) { Add-Type -Path $dll }
+Mark 'loaded'
 [void][ClaudeNotify.Win]::AllowSetForegroundWindow(-1)
-& '@WEZTERM@' cli activate-pane --pane-id $pane
-Start-Sleep -Milliseconds 300
 $gui = @(Get-Process wezterm-gui -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+# A program started from a toast doesn't have WEZTERM_UNIX_SOCKET, and wezterm cli then
+# fails to find the GUI's socket and gives up after about 2 seconds. Point it at the
+# running GUI's socket (gui-sock-<pid>, which may name its target relative to its own
+# folder, so run from there), and skip loading wezterm.lua, which the cli doesn't need.
+$sockdir = Join-Path $env:USERPROFILE '.local\share\wezterm'
+foreach ($g in $gui) {
+  $sock = Join-Path $sockdir ('gui-sock-' + $g.Id)
+  # listed rather than Test-Path, which follows the link and can miss it
+  if (Get-ChildItem -LiteralPath $sockdir -Filter ('gui-sock-' + $g.Id) -Force -ErrorAction SilentlyContinue) { $env:WEZTERM_UNIX_SOCKET = $sock; break }
+}
+if (Test-Path -LiteralPath $sockdir) { Set-Location -LiteralPath $sockdir }
+Mark ('socket ' + $env:WEZTERM_UNIX_SOCKET)
+& '@WEZTERM@' -n cli --no-auto-start activate-pane --pane-id $pane
+Mark ('wezterm cli activate-pane, exit ' + $LASTEXITCODE)
 [uint32]$fg = 0
 [void][ClaudeNotify.Win]::GetWindowThreadProcessId([ClaudeNotify.Win]::GetForegroundWindow(), [ref]$fg)
 if ($gui.Count -ge 1 -and -not ($gui.Id -contains $fg)) {
   $h = $gui[0].MainWindowHandle
   if ([ClaudeNotify.Win]::IsIconic($h)) { [void][ClaudeNotify.Win]::ShowWindow($h, 9) }
   [void][ClaudeNotify.Win]::SetForegroundWindow($h)
+  Mark 'brought WezTerm forward'
+}
+Mark 'done'
+Set-Content -LiteralPath (Join-Path $PSScriptRoot 'wezterm-activate.log') -Value $log
+]]
+
+-- ACTIVATE_PS as a C# program (wezterm-activate.exe). PowerShell itself takes
+-- about half a second to start, more than the rest of the click put together.
+-- Plain C# 5 with no LINQ, which is what Add-Type compiles on Windows PowerShell.
+local ACTIVATE_CS = [[
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+
+static class ClaudeNotifyActivate {
+  [DllImport("user32.dll")] static extern bool AllowSetForegroundWindow(int pid);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hWnd, int cmd);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+
+  static bool InFront(Process gui) {
+    uint fg;
+    GetWindowThreadProcessId(GetForegroundWindow(), out fg);
+    return gui.Id == fg;
+  }
+
+  // Windows only lets a program take the foreground in some cases, and this one
+  // starts too quickly after the click for the plain call to be allowed (the
+  // taskbar button flashes instead). Borrow the current foreground window's
+  // input queue, and if that isn't enough, tap Alt, which lifts the lock.
+  static string BringForward(IntPtr h, Process gui) {
+    if (IsIconic(h)) ShowWindow(h, 9);
+    for (int i = 0; i < 10; i++) {
+      if (InFront(gui)) return i == 0 ? "already in front" : "in front after " + i + " tries";
+      uint dummy;
+      uint fgThread = GetWindowThreadProcessId(GetForegroundWindow(), out dummy);
+      uint me = GetCurrentThreadId();
+      bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+      if (i >= 2) { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
+      BringWindowToTop(h);
+      SetForegroundWindow(h);
+      if (attached) AttachThreadInput(me, fgThread, false);
+      System.Threading.Thread.Sleep(30);
+    }
+    return InFront(gui) ? "in front after 10 tries" : "could not bring WezTerm forward";
+  }
+
+  static int Main(string[] args) {
+    Stopwatch sw = Stopwatch.StartNew();
+    StringBuilder log = new StringBuilder();
+    Action<string> mark = delegate(string what) { log.AppendFormat("{0,6} ms  {1}\r\n", sw.ElapsedMilliseconds, what); };
+    string dir = Path.GetDirectoryName(typeof(ClaudeNotifyActivate).Assembly.Location);
+    try {
+      mark("exe started " + (int)(DateTime.Now - Process.GetCurrentProcess().StartTime).TotalMilliseconds + " ms after launch");
+      Match m = Regex.Match(args.Length > 0 ? args[0] : "", @"pane/(\d+)");
+      if (!m.Success) return 1;
+      AllowSetForegroundWindow(-1);
+
+      Process gui = null;
+      foreach (Process p in Process.GetProcessesByName("wezterm-gui")) {
+        if (p.MainWindowHandle != IntPtr.Zero) { gui = p; break; }
+      }
+      // Same as the PowerShell version: point wezterm cli at the GUI's socket,
+      // run it from the socket's folder, and skip loading wezterm.lua.
+      string sockdir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), @".local\share\wezterm");
+      ProcessStartInfo psi = new ProcessStartInfo(@"@WEZTERM@", "-n cli --no-auto-start activate-pane --pane-id " + m.Groups[1].Value);
+      psi.UseShellExecute = false;
+      psi.CreateNoWindow = true;
+      try {
+        if (Directory.Exists(sockdir)) {
+          psi.WorkingDirectory = sockdir;
+          if (gui != null) {
+            string name = "gui-sock-" + gui.Id;
+            if (Directory.GetFileSystemEntries(sockdir, name).Length > 0) psi.EnvironmentVariables["WEZTERM_UNIX_SOCKET"] = Path.Combine(sockdir, name);
+          }
+        }
+      } catch (Exception e) {
+        mark("socket lookup failed: " + e.Message);
+      }
+      mark("socket " + psi.EnvironmentVariables["WEZTERM_UNIX_SOCKET"]);
+      using (Process cli = Process.Start(psi)) {
+        bool exited = cli.WaitForExit(5000);
+        mark("wezterm cli activate-pane, exit " + (exited ? cli.ExitCode.ToString() : "timeout"));
+      }
+
+      if (gui != null) mark(BringForward(gui.MainWindowHandle, gui));
+      mark("done");
+    } catch (Exception e) {
+      mark("error: " + e.Message);
+    }
+    try { File.WriteAllText(Path.Combine(dir, "wezterm-activate.log"), log.ToString()); } catch { }
+    return 0;
+  }
 }
 ]]
+
+local function activate_program()
+  local exe = wezterm.executable_dir .. '\\wezterm.exe'
+  return (ACTIVATE_CS:gsub('@WEZTERM@', function() return (exe:gsub('"', '""')) end))
+end
 
 local function activate_script()
   local exe = wezterm.executable_dir .. '\\wezterm.exe'
   return (ACTIVATE_PS:gsub('@WEZTERM@', function() return exe:gsub("'", "''") end))
 end
 
+-- Writes the two click handlers to %LOCALAPPDATA%\ClaudeNotify, only when they
+-- changed, so the toast's command line doesn't carry them each time (it has a
+-- 32K character limit). Once per config load.
+local handlers_ready = false
+local function write_if_changed(path, content)
+  local f = io.open(path, 'rb')
+  if f then
+    local current = f:read('*a')
+    f:close()
+    if current == content then return true end
+  end
+  f = io.open(path, 'wb')
+  if not f then return false end
+  f:write(content)
+  f:close()
+  return true
+end
+
+local function prepare_handlers()
+  if handlers_ready then return end
+  local dir = (os.getenv('LOCALAPPDATA') or (wezterm.home_dir .. '\\AppData\\Local')) .. '\\ClaudeNotify'
+  local ps1, cs = dir .. '\\wezterm-activate.ps1', dir .. '\\wezterm-activate.cs'
+  if not write_if_changed(ps1, activate_script()) then
+    wezterm.run_child_process { 'cmd.exe', '/c', 'mkdir', dir }
+    if not write_if_changed(ps1, activate_script()) then return end
+  end
+  handlers_ready = write_if_changed(cs, activate_program())
+end
+
 local function show_toast(n)
+  prepare_handlers()
   local win_path = function(p) return (p:gsub('/', '\\')) end
   local logo = NOTIFY_DIR .. (n.needs and '/status-needs-96.png' or '/status-done-96.png')
   local script = string.format(TOAST_PS,
     base64(NOTIFY_APP_ID), base64(NOTIFY_APP_NAME), base64(win_path(NOTIFY_DIR .. '/icon-256.png')),
     base64(win_path(logo)), base64(n.title), base64(n.body), base64(n.attribution),
-    n.needs and '1' or '0', base64(n.tag),
-    base64(n.uri or ''), base64(activate_script()), base64(URI_SCHEME),
-    base64(ZH and '切換到視窗' or 'Switch to window'))
+    -- Same order as the %s in TOAST_PS: the tag is the last one.
+    n.needs and '1' or '0',
+    base64(n.uri or ''), base64(URI_SCHEME),
+    base64(ZH and '切換到視窗' or 'Switch to window'), base64(n.tag))
   -- -EncodedCommand wants UTF-16LE; the script is ASCII, so that is each byte followed by a zero.
   local utf16 = script:gsub('.', '%0\0')
   wezterm.background_child_process {
