@@ -255,9 +255,10 @@ local function show_toast(n)
   local script = string.format(TOAST_PS,
     base64(NOTIFY_APP_ID), base64(NOTIFY_APP_NAME), base64(win_path(NOTIFY_DIR .. '/icon-256.png')),
     base64(win_path(logo)), base64(n.title), base64(n.body), base64(n.attribution),
-    n.needs and '1' or '0', base64(n.tag),
+    -- Same order as the %s in TOAST_PS: the tag is the last one.
+    n.needs and '1' or '0',
     base64(n.uri or ''), base64(activate_script()), base64(URI_SCHEME),
-    base64(ZH and '切換到視窗' or 'Switch to window'))
+    base64(ZH and '切換到視窗' or 'Switch to window'), base64(n.tag))
   -- -EncodedCommand wants UTF-16LE; the script is ASCII, so that is each byte followed by a zero.
   local utf16 = script:gsub('.', '%0\0')
   wezterm.background_child_process {
