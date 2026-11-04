@@ -24,12 +24,15 @@ local function basename(path)
 end
 
 -- The host in an ssh command line: the first argument that isn't an option or an option's value.
+-- Also for trzsz ssh ... (trzsz wraps ssh for file transfer), where the word ssh is skipped.
 local OPT_WITH_VALUE = 'bcDEeFIiJLlmOopQRSWw'
 local function host_from_argv(argv)
   local skip = false
   for i = 2, #argv do
     local a = argv[i]
-    if skip then
+    if i == 2 and a == 'ssh' then
+      -- trzsz ssh host
+    elseif skip then
       skip = false
     elseif a:sub(1, 1) == '-' then
       if #a == 2 and OPT_WITH_VALUE:find(a:sub(2, 2), 1, true) then skip = true end
@@ -140,7 +143,7 @@ local function environment(pane)
   local ok, info = pcall(function() return pane:get_foreground_process_info() end)
   if not ok or not info then return '' end
   local proc = basename(info.executable or (info.argv and info.argv[1]))
-  if proc == 'ssh' then
+  if proc == 'ssh' or proc == 'trzsz' then
     local host = info.argv and host_from_argv(info.argv)
     return host and ('SSH: ' .. host) or 'SSH'
   elseif proc == 'wsl' then
