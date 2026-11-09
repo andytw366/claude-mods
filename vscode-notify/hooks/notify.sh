@@ -16,7 +16,8 @@
 dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/vscode-notify"
 mkdir -p "$dir" || exit 0
 # .start-* files are left over from plugin 0.2.x.
-find "$dir" -maxdepth 1 \( -name '*.json' -mmin +2 -o -name '.start-*' \) -delete 2>/dev/null
+# .seq-* are left by console-write.ps1 when it could not run (Windows only).
+find "$dir" -maxdepth 1 \( -name '*.json' -mmin +2 -o -name '.start-*' -o -name '.seq-*' -mmin +2 \) -delete 2>/dev/null
 
 window=$(printf %s "$CLAUDE_NOTIFY_WINDOW" | tr -cd 'A-Za-z0-9-')
 name="$(date +%s)-$$-$RANDOM.json"
@@ -50,6 +51,19 @@ if [ -z "$window" ] && [ "$TERM_PROGRAM" != "vscode" ] && [ "${CLAUDE_NOTIFY_TER
     seq=$(printf '\033]1337;SetUserVar=claude_notify=%s\007' "$value")
   fi
   tty_dev=$(find_tty)
-  [ -n "$tty_dev" ] && { printf %s "$seq" >"$tty_dev"; } 2>/dev/null
+  if [ -n "$tty_dev" ]; then
+    { printf %s "$seq" >"$tty_dev"; } 2>/dev/null
+  elif [ -n "$CLAUDE_PID" ] && command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+    # Windows (Git Bash): there is no tty, and Git Bash's ps has no -o, so
+    # find_tty finds nothing. Claude Code's console is a ConPTY the terminal
+    # reads, so console-write.ps1 attaches to it (CLAUDE_PID) and writes there.
+    # PowerShell takes about half a second to start, so it runs in the
+    # background and the hook returns at once.
+    seqfile="$dir/.seq-$name"
+    printf %s "$seq" >"$seqfile" &&
+      (powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -File "$(cygpath -w "$(dirname "$0")/console-write.ps1")" \
+        -ProcessId "$CLAUDE_PID" -Path "$(cygpath -w "$seqfile")" </dev/null >/dev/null 2>&1 &)
+  fi
 fi
 exit 0
