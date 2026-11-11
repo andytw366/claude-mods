@@ -34,9 +34,9 @@
     },
     {
       "name": "vscode-images",
-      "description": "A ShowImage tool that shows the pictures Claude wants you to see in a floating VS Code window, leaving the keyboard in the terminal. Pairs with a small VS Code extension.",
+      "description": "A ShowImage tool that shows the pictures Claude wants you to see: in a floating VS Code window from VS Code's terminal (with a small extension), or inline in WezTerm, kitty, Ghostty or iTerm2, also over SSH and in WSL.",
       "source": "./vscode-images",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "category": "appearance",
       "tags": [
         "mod",
